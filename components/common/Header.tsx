@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
 import {
   AppBar,
@@ -45,14 +46,19 @@ const Header: React.FC = () => {
     <>
       <AppBar position="sticky" sx={{ bgcolor: '#1e293b' }}>
         <Toolbar className="max-w-7xl mx-auto w-full">
-          <Typography
-            variant="h6"
+          <Box
             component={Link}
             href="/"
-            sx={{ flexGrow: 0, mr: 4, color: 'white', textDecoration: 'none', fontWeight: 700 }}
+            sx={{ flexGrow: 0, mr: 4, display: 'flex', alignItems: 'center', gap: 1, textDecoration: 'none' }}
           >
-            Notify
-          </Typography>
+            <Image src="/notify-logo.png" alt="Notify" width={40} height={40} style={{ borderRadius: '50%' }} />
+            <Typography
+              variant="h6"
+              sx={{ color: 'white', fontWeight: 700 }}
+            >
+              Notify
+            </Typography>
+          </Box>
 
           {isMobile ? (
             <>
