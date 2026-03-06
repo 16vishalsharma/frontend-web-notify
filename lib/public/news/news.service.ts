@@ -2,7 +2,7 @@ import api from '../../../services/api';
 import { INews, INewsResponse } from '../../../types';
 
 export const newsService = {
-  getAll: async (params?: { topic?: string; page?: number; limit?: number; search?: string }): Promise<INewsResponse> => {
+  getAll: async (params?: { topic?: string; page?: number; limit?: number; search?: string; sort?: string }): Promise<INewsResponse> => {
     const { data } = await api.get('/news', { params });
     return data;
   },

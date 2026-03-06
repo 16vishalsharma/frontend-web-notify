@@ -8,6 +8,8 @@ const TOPICS = [
   { value: 'ipo', label: 'IPO' },
   { value: 'mutual-funds', label: 'Mutual Funds' },
   { value: 'crypto', label: 'Crypto' },
+  { value: 'bitcoin', label: 'Bitcoin' },
+  { value: 'gold-price', label: 'Gold Price' },
   { value: 'startup', label: 'Startup' },
   { value: 'economy', label: 'Economy' },
   { value: 'finance', label: 'Finance' },
@@ -22,7 +24,7 @@ interface TopicFilterProps {
 
 const TopicFilter: React.FC<TopicFilterProps> = ({ currentTopic, onTopicChange }) => {
   return (
-    <Box className="flex flex-wrap gap-2 mb-6">
+    <Box className="flex flex-wrap gap-2">
       {TOPICS.map((topic) => (
         <Chip
           key={topic.value}

@@ -6,27 +6,39 @@ interface NewsState {
   newsList: INews[];
   currentNews: INews | null;
   loading: boolean;
+  loadingMore: boolean;
   error: string | null;
   total: number;
   page: number;
   totalPages: number;
   currentTopic: string;
+  sortOrder: 'latest' | 'oldest';
 }
 
 const initialState: NewsState = {
   newsList: [],
   currentNews: null,
   loading: false,
+  loadingMore: false,
   error: null,
   total: 0,
   page: 1,
   totalPages: 1,
   currentTopic: '',
+  sortOrder: 'latest',
 };
 
 export const fetchAllNews = createAsyncThunk(
   'news/fetchAll',
-  async (params?: { topic?: string; page?: number; limit?: number; search?: string }) => {
+  async (params?: { topic?: string; page?: number; limit?: number; search?: string; sort?: string }) => {
+    const response = await newsService.getAll(params);
+    return response;
+  }
+);
+
+export const fetchMoreNews = createAsyncThunk(
+  'news/fetchMore',
+  async (params?: { topic?: string; page?: number; limit?: number; search?: string; sort?: string }) => {
     const response = await newsService.getAll(params);
     return response;
   }
@@ -46,6 +58,9 @@ const newsSlice = createSlice({
   reducers: {
     setCurrentTopic: (state, action: PayloadAction<string>) => {
       state.currentTopic = action.payload;
+    },
+    setSortOrder: (state, action: PayloadAction<'latest' | 'oldest'>) => {
+      state.sortOrder = action.payload;
     },
     clearCurrentNews: (state) => {
       state.currentNews = null;
@@ -68,6 +83,21 @@ const newsSlice = createSlice({
         state.loading = false;
         state.error = action.error.message || 'Failed to fetch news';
       })
+      .addCase(fetchMoreNews.pending, (state) => {
+        state.loadingMore = true;
+        state.error = null;
+      })
+      .addCase(fetchMoreNews.fulfilled, (state, action) => {
+        state.loadingMore = false;
+        state.newsList = [...state.newsList, ...action.payload.data];
+        state.total = action.payload.total;
+        state.page = action.payload.page;
+        state.totalPages = action.payload.totalPages;
+      })
+      .addCase(fetchMoreNews.rejected, (state, action) => {
+        state.loadingMore = false;
+        state.error = action.error.message || 'Failed to fetch more news';
+      })
       .addCase(fetchNewsById.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -83,5 +113,5 @@ const newsSlice = createSlice({
   },
 });
 
-export const { setCurrentTopic, clearCurrentNews } = newsSlice.actions;
+export const { setCurrentTopic, setSortOrder, clearCurrentNews } = newsSlice.actions;
 export default newsSlice.reducer;
