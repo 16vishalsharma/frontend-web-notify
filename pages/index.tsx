@@ -7,6 +7,7 @@ import NewspaperIcon from '@mui/icons-material/Newspaper';
 import ArticleIcon from '@mui/icons-material/Article';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
 
 const features = [
   {
@@ -36,6 +37,13 @@ const features = [
     icon: <ShoppingBagIcon sx={{ fontSize: 40 }} />,
     path: '/products',
     color: '#dc2626',
+  },
+  {
+    title: 'Share Market',
+    description: 'Live crypto, metals & Indian stock market prices',
+    icon: <ShowChartIcon sx={{ fontSize: 40 }} />,
+    path: '/share-market',
+    color: '#7c3aed',
   },
 ];
 
