@@ -3,3 +3,4 @@ export * from './blog';
 export * from './product';
 export * from './upload';
 export * from './auth';
+export * from './metalPrice';

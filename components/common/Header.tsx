@@ -26,6 +26,7 @@ const navLinks = [
   { label: 'Products', path: '/products' },
   { label: 'Blogs', path: '/blogs' },
   { label: 'News', path: '/news' },
+  { label: 'Gold Price', path: '/gold-price' },
   { label: 'Upload', path: '/upload' },
 ];
 
