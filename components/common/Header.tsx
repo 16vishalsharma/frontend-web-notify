@@ -28,6 +28,7 @@ const navLinks = [
   { label: 'News', path: '/news' },
   { label: 'Gold Price', path: '/gold-price' },
   { label: 'Share Market', path: '/share-market' },
+  { label: 'Ask AI', path: '/chat' },
   { label: 'Upload', path: '/upload' },
 ];
 
