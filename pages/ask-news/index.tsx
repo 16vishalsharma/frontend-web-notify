@@ -9,11 +9,13 @@ import {
   Avatar,
   CircularProgress,
   Chip,
+  Tooltip,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import NewspaperIcon from '@mui/icons-material/Newspaper';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
 interface Message {
   id: string;
@@ -29,9 +31,10 @@ const suggestedQuestions = [
   'What are the top crypto trends today?',
   'Any updates on RBI monetary policy?',
   'Latest startup funding news in India',
+  'What happened in tech news this week?',
 ];
 
-const ChatPage: React.FC = () => {
+const AskNewsPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -102,22 +105,15 @@ const ChatPage: React.FC = () => {
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
 
-        // Server doesn't terminate chunked encoding properly — if content was already
-        // streamed into the last message, treat it as success and ignore the error.
-        const lastMsg = messages[messages.length - 1];
-        if (
-          error instanceof TypeError &&
-          lastMsg?.role === 'assistant' &&
-          lastMsg.content
-        ) {
-          return;
-        }
-
+        // Server may not terminate chunked encoding properly — if content already received, ignore
         setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === 'assistant' && last.content) return prev;
+
           const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last?.role === 'assistant' && !last.content) {
-            last.content = 'Sorry, something went wrong. Please try again.';
+          const lastMsg = updated[updated.length - 1];
+          if (lastMsg?.role === 'assistant' && !lastMsg.content) {
+            lastMsg.content = 'Sorry, something went wrong. Please try again.';
           }
           return updated;
         });
@@ -136,16 +132,33 @@ const ChatPage: React.FC = () => {
     }
   };
 
+  const handleClearChat = () => {
+    if (isStreaming && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setMessages([]);
+    setIsStreaming(false);
+  };
+
   return (
     <Layout>
       <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)', maxHeight: '800px' }}>
         {/* Header */}
-        <Box className="flex items-center gap-2 mb-4">
-          <AutoAwesomeIcon color="primary" />
-          <Typography variant="h1">News Assistant</Typography>
+        <Box className="flex items-center justify-between mb-2">
+          <Box className="flex items-center gap-2">
+            <NewspaperIcon color="primary" />
+            <Typography variant="h1">Ask News AI</Typography>
+          </Box>
+          {messages.length > 0 && (
+            <Tooltip title="Clear chat">
+              <IconButton onClick={handleClearChat} size="small" color="default">
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
         <Typography variant="body2" color="text.secondary" className="mb-4">
-          Ask anything about market trends, stocks, IPOs, crypto, and business news
+          Ask any news-related question and get instant AI-powered answers from our news database
         </Typography>
 
         {/* Chat area */}
@@ -162,11 +175,11 @@ const ChatPage: React.FC = () => {
           <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
             {messages.length === 0 ? (
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 3 }}>
-                <SmartToyIcon sx={{ fontSize: 56, color: 'primary.light', opacity: 0.6 }} />
+                <NewspaperIcon sx={{ fontSize: 56, color: 'primary.light', opacity: 0.6 }} />
                 <Typography variant="h6" color="text.secondary" fontWeight={500}>
-                  How can I help you today?
+                  What news are you looking for?
                 </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center', maxWidth: 500 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center', maxWidth: 550 }}>
                   {suggestedQuestions.map((q) => (
                     <Chip
                       key={q}
@@ -217,7 +230,7 @@ const ChatPage: React.FC = () => {
                     {msg.content || (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <CircularProgress size={16} color="inherit" />
-                        <Typography variant="body2" color="inherit">Thinking...</Typography>
+                        <Typography variant="body2" color="inherit">Searching news...</Typography>
                       </Box>
                     )}
                   </Paper>
@@ -235,7 +248,7 @@ const ChatPage: React.FC = () => {
                 fullWidth
                 multiline
                 maxRows={4}
-                placeholder="Ask about news, markets, stocks..."
+                placeholder="Ask about any news topic..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -272,4 +285,4 @@ const ChatPage: React.FC = () => {
   );
 };
 
-export default ChatPage;
+export default AskNewsPage;
