@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Layout } from '@components/common';
 import {
   Typography,
@@ -226,13 +227,49 @@ const ChatPage: React.FC = () => {
                       borderRadius: 2.5,
                       bgcolor: msg.role === 'user' ? 'primary.main' : 'grey.100',
                       color: msg.role === 'user' ? 'white' : 'text.primary',
-                      whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       fontSize: '0.95rem',
                       lineHeight: 1.6,
+                      '& .markdown-body': {
+                        '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
+                        '& ul, & ol': { m: 0, mb: 1, pl: 2.5 },
+                        '& li': { mb: 0.5 },
+                        '& h1, & h2, & h3': { mt: 1.5, mb: 0.5, fontSize: '1.1rem', fontWeight: 600 },
+                        '& code': {
+                          bgcolor: 'rgba(0,0,0,0.06)',
+                          px: 0.5,
+                          py: 0.25,
+                          borderRadius: 0.5,
+                          fontSize: '0.85rem',
+                        },
+                        '& pre': {
+                          bgcolor: 'rgba(0,0,0,0.06)',
+                          p: 1.5,
+                          borderRadius: 1,
+                          overflow: 'auto',
+                          '& code': { bgcolor: 'transparent', p: 0 },
+                        },
+                        '& strong': { fontWeight: 600 },
+                        '& a': { color: 'primary.main', textDecoration: 'underline' },
+                        '& blockquote': {
+                          borderLeft: '3px solid',
+                          borderColor: 'primary.light',
+                          pl: 1.5,
+                          ml: 0,
+                          opacity: 0.85,
+                        },
+                      },
                     }}
                   >
-                    {msg.content || (
+                    {msg.content ? (
+                      msg.role === 'assistant' ? (
+                        <Box className="markdown-body">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </Box>
+                      ) : (
+                        msg.content
+                      )
+                    ) : (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <CircularProgress size={16} color="inherit" />
                         <Typography variant="body2" color="inherit">Analyzing...</Typography>

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Layout } from '@components/common';
 import {
   Typography,
@@ -23,7 +24,7 @@ interface Message {
   content: string;
 }
 
-const ASK_API_URL = process.env.NEXT_PUBLIC_ASK_API_URL || 'http://localhost:8000';
+const ASK_API_URL = process.env.NEXT_PUBLIC_ASK_API_URL || 'http://localhost:8001/ask';
 
 const suggestedQuestions = [
   'What is the latest news on stock market?',
@@ -37,7 +38,7 @@ const suggestedQuestions = [
 const AskNewsPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -52,7 +53,7 @@ const AskNewsPage: React.FC = () => {
 
   const handleSend = async (text?: string) => {
     const query = (text || input).trim();
-    if (!query || isStreaming) return;
+    if (!query || isLoading) return;
 
     setInput('');
 
@@ -69,43 +70,106 @@ const AskNewsPage: React.FC = () => {
     };
 
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
-    setIsStreaming(true);
+    setIsLoading(true);
 
     abortControllerRef.current = new AbortController();
 
-    fetch(`${ASK_API_URL}/ask`, {
+    fetch(ASK_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
       signal: abortControllerRef.current.signal,
     })
-      .then((response) => {
+      .then(async (response) => {
         if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
         const reader = response.body!.getReader();
         const decoder = new TextDecoder();
+        let buffer = '';
+        let isDone = false;
 
-        return reader.read().then(function process({ done, value }): Promise<void> | void {
-          if (done) return;
+        while (!isDone) {
+          let result;
+          try {
+            result = await reader.read();
+          } catch {
+            // Stream error (e.g. ERR_INCOMPLETE_CHUNKED_ENCODING) — stop reading
+            break;
+          }
 
-          const chunk = decoder.decode(value, { stream: true });
+          if (result.done) break;
 
-          setMessages((prev) => {
-            const updated = [...prev];
-            const last = updated[updated.length - 1];
-            if (last.role === 'assistant') {
-              last.content += chunk;
+          buffer += decoder.decode(result.value, { stream: true });
+
+          // Process all complete lines in the buffer
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          let newText = '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            if (trimmed.startsWith('data:')) {
+              const data = trimmed.slice(5).trim();
+
+              if (data === '[DONE]') {
+                isDone = true;
+                break;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.chunk != null) {
+                  newText += parsed.chunk;
+                }
+              } catch {
+                // skip invalid JSON
+              }
             }
-            return updated;
-          });
+          }
 
-          return reader.read().then(process);
-        });
+          if (newText) {
+            setMessages((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last.role === 'assistant') {
+                last.content += newText;
+              }
+              return updated;
+            });
+          }
+        }
+
+        // Process any remaining data in buffer
+        if (buffer.trim()) {
+          const trimmed = buffer.trim();
+          if (trimmed.startsWith('data:')) {
+            const data = trimmed.slice(5).trim();
+            if (data !== '[DONE]') {
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.chunk != null) {
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const last = updated[updated.length - 1];
+                    if (last.role === 'assistant') {
+                      last.content += parsed.chunk;
+                    }
+                    return updated;
+                  });
+                }
+              } catch {
+                // skip
+              }
+            }
+          }
+        }
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
 
-        // Server may not terminate chunked encoding properly — if content already received, ignore
+        // If content already received, ignore stream errors
         setMessages((prev) => {
           const last = prev[prev.length - 1];
           if (last?.role === 'assistant' && last.content) return prev;
@@ -119,7 +183,7 @@ const AskNewsPage: React.FC = () => {
         });
       })
       .finally(() => {
-        setIsStreaming(false);
+        setIsLoading(false);
         abortControllerRef.current = null;
         inputRef.current?.focus();
       });
@@ -133,13 +197,12 @@ const AskNewsPage: React.FC = () => {
   };
 
   const handleClearChat = () => {
-    if (isStreaming && abortControllerRef.current) {
+    if (isLoading && abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     setMessages([]);
-    setIsStreaming(false);
+    setIsLoading(false);
   };
-
   return (
     <Layout>
       <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)', maxHeight: '800px' }}>
@@ -206,6 +269,7 @@ const AskNewsPage: React.FC = () => {
                     sx={{
                       width: 32,
                       height: 32,
+                      flexShrink: 0,
                       bgcolor: msg.role === 'user' ? 'primary.main' : 'grey.200',
                       color: msg.role === 'user' ? 'white' : 'text.primary',
                     }}
@@ -221,13 +285,49 @@ const AskNewsPage: React.FC = () => {
                       borderRadius: 2.5,
                       bgcolor: msg.role === 'user' ? 'primary.main' : 'grey.100',
                       color: msg.role === 'user' ? 'white' : 'text.primary',
-                      whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       fontSize: '0.95rem',
                       lineHeight: 1.6,
+                      '& .markdown-body': {
+                        '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
+                        '& ul, & ol': { m: 0, mb: 1, pl: 2.5 },
+                        '& li': { mb: 0.5 },
+                        '& h1, & h2, & h3': { mt: 1.5, mb: 0.5, fontSize: '1.1rem', fontWeight: 600 },
+                        '& code': {
+                          bgcolor: 'rgba(0,0,0,0.06)',
+                          px: 0.5,
+                          py: 0.25,
+                          borderRadius: 0.5,
+                          fontSize: '0.85rem',
+                        },
+                        '& pre': {
+                          bgcolor: 'rgba(0,0,0,0.06)',
+                          p: 1.5,
+                          borderRadius: 1,
+                          overflow: 'auto',
+                          '& code': { bgcolor: 'transparent', p: 0 },
+                        },
+                        '& strong': { fontWeight: 600 },
+                        '& a': { color: 'primary.main', textDecoration: 'underline' },
+                        '& blockquote': {
+                          borderLeft: '3px solid',
+                          borderColor: 'primary.light',
+                          pl: 1.5,
+                          ml: 0,
+                          opacity: 0.85,
+                        },
+                      },
                     }}
                   >
-                    {msg.content || (
+                    {msg.content ? (
+                      msg.role === 'assistant' ? (
+                        <Box className="markdown-body">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </Box>
+                      ) : (
+                        msg.content
+                      )
+                    ) : (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <CircularProgress size={16} color="inherit" />
                         <Typography variant="body2" color="inherit">Searching news...</Typography>
@@ -252,7 +352,7 @@ const AskNewsPage: React.FC = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                disabled={isStreaming}
+                disabled={isLoading}
                 variant="outlined"
                 size="small"
                 sx={{
@@ -265,7 +365,7 @@ const AskNewsPage: React.FC = () => {
               <IconButton
                 color="primary"
                 onClick={() => handleSend()}
-                disabled={!input.trim() || isStreaming}
+                disabled={!input.trim() || isLoading}
                 sx={{
                   bgcolor: 'primary.main',
                   color: 'white',
@@ -275,7 +375,7 @@ const AskNewsPage: React.FC = () => {
                   height: 40,
                 }}
               >
-                {isStreaming ? <CircularProgress size={20} color="inherit" /> : <SendIcon fontSize="small" />}
+                {isLoading ? <CircularProgress size={20} color="inherit" /> : <SendIcon fontSize="small" />}
               </IconButton>
             </Box>
           </Box>
