@@ -26,13 +26,69 @@ interface Message {
 }
 
 const suggestedQuestions = [
+  'Analyse TCS for 5 years',
   'How is Nifty performing this week?',
   'Best SIP strategies for beginners',
-  'Upcoming IPOs to watch in 2026',
+  'Analyse RELIANCE for 10 years',
   'Gold vs equity — which is better now?',
-  'How will RBI rate cut affect markets?',
-  'Top mutual funds for long term',
+  'Fundamental analysis of HDFCBANK',
 ];
+
+// Detect if response is HTML (stock analysis widget) vs markdown
+function isHTMLResponse(content: string): boolean {
+  const trimmed = content.trim();
+  return trimmed.startsWith('<style>') || trimmed.startsWith('<div class="wrap');
+}
+
+// Renders HTML widget in an iframe so <script> tags work (for tab switching)
+const HTMLWidget: React.FC<{ html: string }> = ({ html }) => {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState(600);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      const body = iframe.contentDocument?.body;
+      if (body) {
+        setHeight(body.scrollHeight + 20);
+      }
+    });
+
+    const handleLoad = () => {
+      const body = iframe.contentDocument?.body;
+      if (body) {
+        setHeight(body.scrollHeight + 20);
+        resizeObserver.observe(body);
+      }
+    };
+
+    iframe.addEventListener('load', handleLoad);
+    return () => {
+      iframe.removeEventListener('load', handleLoad);
+      resizeObserver.disconnect();
+    };
+  }, [html]);
+
+  const srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:8px;font-family:system-ui,sans-serif;font-size:13px;line-height:1.6;background:transparent;--color-text-primary:#1a1a1a;--color-text-secondary:#6b7280;--color-background-primary:#fff;--color-background-secondary:#f9fafb;--color-border-secondary:rgba(0,0,0,0.15);--color-border-tertiary:rgba(0,0,0,0.08);--color-border-primary:rgba(0,0,0,0.3)}@media(prefers-color-scheme:dark){body{--color-text-primary:#e5e7eb;--color-text-secondary:#9ca3af;--color-background-primary:#1f2937;--color-background-secondary:#111827;--color-border-secondary:rgba(255,255,255,0.15);--color-border-tertiary:rgba(255,255,255,0.08);--color-border-primary:rgba(255,255,255,0.3);color:#e5e7eb;background:#1f2937}}</style></head><body>${html}</body></html>`;
+
+  return (
+    <iframe
+      ref={iframeRef}
+      srcDoc={srcdoc}
+      style={{
+        width: '100%',
+        height,
+        border: 'none',
+        borderRadius: 8,
+        overflow: 'hidden',
+      }}
+      sandbox="allow-scripts"
+      title="Stock Analysis"
+    />
+  );
+};
 
 const ChatPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -218,64 +274,71 @@ const ChatPage: React.FC = () => {
                   >
                     {msg.role === 'user' ? <PersonIcon fontSize="small" /> : <SmartToyIcon fontSize="small" />}
                   </Avatar>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 1.5,
-                      px: 2,
-                      maxWidth: '75%',
-                      borderRadius: 2.5,
-                      bgcolor: msg.role === 'user' ? 'primary.main' : 'grey.100',
-                      color: msg.role === 'user' ? 'white' : 'text.primary',
-                      wordBreak: 'break-word',
-                      fontSize: '0.95rem',
-                      lineHeight: 1.6,
-                      '& .markdown-body': {
-                        '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
-                        '& ul, & ol': { m: 0, mb: 1, pl: 2.5 },
-                        '& li': { mb: 0.5 },
-                        '& h1, & h2, & h3': { mt: 1.5, mb: 0.5, fontSize: '1.1rem', fontWeight: 600 },
-                        '& code': {
-                          bgcolor: 'rgba(0,0,0,0.06)',
-                          px: 0.5,
-                          py: 0.25,
-                          borderRadius: 0.5,
-                          fontSize: '0.85rem',
+                  {msg.role === 'assistant' && msg.content && isHTMLResponse(msg.content) ? (
+                    // Full-width HTML widget for stock analysis
+                    <Box sx={{ maxWidth: '95%', width: '100%' }}>
+                      <HTMLWidget html={msg.content} />
+                    </Box>
+                  ) : (
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 1.5,
+                        px: 2,
+                        maxWidth: '75%',
+                        borderRadius: 2.5,
+                        bgcolor: msg.role === 'user' ? 'primary.main' : 'grey.100',
+                        color: msg.role === 'user' ? 'white' : 'text.primary',
+                        wordBreak: 'break-word',
+                        fontSize: '0.95rem',
+                        lineHeight: 1.6,
+                        '& .markdown-body': {
+                          '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
+                          '& ul, & ol': { m: 0, mb: 1, pl: 2.5 },
+                          '& li': { mb: 0.5 },
+                          '& h1, & h2, & h3': { mt: 1.5, mb: 0.5, fontSize: '1.1rem', fontWeight: 600 },
+                          '& code': {
+                            bgcolor: 'rgba(0,0,0,0.06)',
+                            px: 0.5,
+                            py: 0.25,
+                            borderRadius: 0.5,
+                            fontSize: '0.85rem',
+                          },
+                          '& pre': {
+                            bgcolor: 'rgba(0,0,0,0.06)',
+                            p: 1.5,
+                            borderRadius: 1,
+                            overflow: 'auto',
+                            '& code': { bgcolor: 'transparent', p: 0 },
+                          },
+                          '& strong': { fontWeight: 600 },
+                          '& a': { color: 'primary.main', textDecoration: 'underline' },
+                          '& blockquote': {
+                            borderLeft: '3px solid',
+                            borderColor: 'primary.light',
+                            pl: 1.5,
+                            ml: 0,
+                            opacity: 0.85,
+                          },
                         },
-                        '& pre': {
-                          bgcolor: 'rgba(0,0,0,0.06)',
-                          p: 1.5,
-                          borderRadius: 1,
-                          overflow: 'auto',
-                          '& code': { bgcolor: 'transparent', p: 0 },
-                        },
-                        '& strong': { fontWeight: 600 },
-                        '& a': { color: 'primary.main', textDecoration: 'underline' },
-                        '& blockquote': {
-                          borderLeft: '3px solid',
-                          borderColor: 'primary.light',
-                          pl: 1.5,
-                          ml: 0,
-                          opacity: 0.85,
-                        },
-                      },
-                    }}
-                  >
-                    {msg.content ? (
-                      msg.role === 'assistant' ? (
-                        <Box className="markdown-body">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
-                        </Box>
+                      }}
+                    >
+                      {msg.content ? (
+                        msg.role === 'assistant' ? (
+                          <Box className="markdown-body">
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          </Box>
+                        ) : (
+                          msg.content
+                        )
                       ) : (
-                        msg.content
-                      )
-                    ) : (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <CircularProgress size={16} color="inherit" />
-                        <Typography variant="body2" color="inherit">Analyzing...</Typography>
-                      </Box>
-                    )}
-                  </Paper>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CircularProgress size={16} color="inherit" />
+                          <Typography variant="body2" color="inherit">Analyzing...</Typography>
+                        </Box>
+                      )}
+                    </Paper>
+                  )}
                 </Box>
               ))
             )}
