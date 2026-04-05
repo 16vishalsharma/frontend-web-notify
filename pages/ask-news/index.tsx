@@ -35,6 +35,56 @@ const suggestedQuestions = [
   'What happened in tech news this week?',
 ];
 
+// Static follow-up suggestions (will be replaced with dynamic API later)
+const followUpSuggestions: Record<string, string[]> = {
+  default: [
+    'Tell me more about this',
+    'What are the risks involved?',
+    'How does this impact retail investors?',
+    'Any related news?',
+  ],
+  'stock market': [
+    'Which sectors are performing best?',
+    'What are experts predicting for next week?',
+    'Top gainers and losers today?',
+    'How are FIIs and DIIs positioned?',
+  ],
+  ipo: [
+    'What is the expected listing price?',
+    'Should retail investors subscribe?',
+    'What are the GMP trends?',
+    'Any upcoming IPOs this month?',
+  ],
+  crypto: [
+    'What is Bitcoin price prediction?',
+    'Which altcoins are trending?',
+    'Any regulatory updates on crypto in India?',
+    'How is the global crypto market?',
+  ],
+  rbi: [
+    'How will this affect home loan EMIs?',
+    'What is the current repo rate?',
+    'Impact on fixed deposit rates?',
+    'How are banks reacting to this?',
+  ],
+  startup: [
+    'Which startups got funded recently?',
+    'Any upcoming unicorns?',
+    'What sectors are getting most funding?',
+    'Any startup IPOs coming up?',
+  ],
+};
+
+function getFollowUps(query: string): string[] {
+  const q = query.toLowerCase();
+  if (q.includes('ipo') || q.includes('listing')) return followUpSuggestions.ipo;
+  if (q.includes('crypto') || q.includes('bitcoin')) return followUpSuggestions.crypto;
+  if (q.includes('rbi') || q.includes('monetary') || q.includes('rate')) return followUpSuggestions.rbi;
+  if (q.includes('startup') || q.includes('funding')) return followUpSuggestions.startup;
+  if (q.includes('stock') || q.includes('market') || q.includes('nifty') || q.includes('sensex')) return followUpSuggestions['stock market'];
+  return followUpSuggestions.default;
+}
+
 // Parse SSE response text into plain text
 function parseSSE(raw: string): string {
   let text = '';
@@ -59,6 +109,7 @@ const AskNewsPage: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [, setIsTyping] = useState(false);
+  const [activeFollowUps, setActiveFollowUps] = useState<{ msgId: string; questions: string[] } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -79,10 +130,11 @@ const AskNewsPage: React.FC = () => {
     };
   }, []);
 
-  const typeOutResponse = useCallback((fullText: string, msgId: string) => {
+  const typeOutResponse = useCallback((fullText: string, msgId: string, query: string) => {
     const words = fullText.split(/(\s+)/); // split but keep whitespace
     let index = 0;
     setIsTyping(true);
+    setActiveFollowUps(null);
 
     typingRef.current = window.setInterval(() => {
       // Add a few words per tick for natural speed
@@ -101,6 +153,7 @@ const AskNewsPage: React.FC = () => {
         typingRef.current = null;
         setIsTyping(false);
         setIsLoading(false);
+        setActiveFollowUps({ msgId, questions: getFollowUps(query) });
       }
     }, 30);
   }, []);
@@ -110,6 +163,7 @@ const AskNewsPage: React.FC = () => {
     if (!query || isLoading) return;
 
     setInput('');
+    setActiveFollowUps(null);
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -163,7 +217,7 @@ const AskNewsPage: React.FC = () => {
 
       if (fullText) {
         // Type it out word by word
-        typeOutResponse(fullText, assistantId);
+        typeOutResponse(fullText, assistantId, query);
       } else {
         setMessages((prev) =>
           prev.map((m) =>
@@ -267,32 +321,32 @@ const AskNewsPage: React.FC = () => {
               </Box>
             ) : (
               messages.map((msg) => (
-                <Box
-                  key={msg.id}
-                  sx={{
-                    display: 'flex',
-                    gap: 1.5,
-                    mb: 2.5,
-                    flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-                  }}
-                >
-                  <Avatar
+                <React.Fragment key={msg.id}>
+                  <Box
                     sx={{
-                      width: 32,
-                      height: 32,
-                      flexShrink: 0,
-                      bgcolor: msg.role === 'user' ? 'primary.main' : 'grey.200',
-                      color: msg.role === 'user' ? 'white' : 'text.primary',
+                      display: 'flex',
+                      gap: 1.5,
+                      mb: activeFollowUps?.msgId === msg.id ? 1 : 2.5,
+                      flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
                     }}
                   >
-                    {msg.role === 'user' ? <PersonIcon fontSize="small" /> : <SmartToyIcon fontSize="small" />}
-                  </Avatar>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 1.5,
-                      px: 2,
-                      maxWidth: '75%',
+                    <Avatar
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        flexShrink: 0,
+                        bgcolor: msg.role === 'user' ? 'primary.main' : 'grey.200',
+                        color: msg.role === 'user' ? 'white' : 'text.primary',
+                      }}
+                    >
+                      {msg.role === 'user' ? <PersonIcon fontSize="small" /> : <SmartToyIcon fontSize="small" />}
+                    </Avatar>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 1.5,
+                        px: 2,
+                        maxWidth: '75%',
                       borderRadius: 2.5,
                       bgcolor: msg.role === 'user' ? 'primary.main' : 'grey.100',
                       color: msg.role === 'user' ? 'white' : 'text.primary',
@@ -345,7 +399,28 @@ const AskNewsPage: React.FC = () => {
                       </Box>
                     )}
                   </Paper>
-                </Box>
+                  </Box>
+                  {/* Follow-up suggestions below the assistant answer */}
+                  {activeFollowUps?.msgId === msg.id && (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2.5, ml: 5.5 }}>
+                      {activeFollowUps.questions.map((q) => (
+                        <Chip
+                          key={q}
+                          label={q}
+                          size="small"
+                          variant="outlined"
+                          onClick={() => handleSend(q)}
+                          disabled={isLoading}
+                          sx={{
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            '&:hover': { bgcolor: 'primary.main', color: 'white' },
+                          }}
+                        />
+                      ))}
+                    </Box>
+                  )}
+                </React.Fragment>
               ))
             )}
             <div ref={messagesEndRef} />
