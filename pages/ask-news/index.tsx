@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Layout } from '@components/common';
 import {
@@ -35,13 +35,34 @@ const suggestedQuestions = [
   'What happened in tech news this week?',
 ];
 
+// Parse SSE response text into plain text
+function parseSSE(raw: string): string {
+  let text = '';
+  const lines = raw.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || !trimmed.startsWith('data:')) continue;
+    const data = trimmed.slice(5).trim();
+    if (data === '[DONE]') break;
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed.chunk != null) text += parsed.chunk;
+    } catch {
+      // skip
+    }
+  }
+  return text;
+}
+
 const AskNewsPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const typingRef = useRef<number | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -50,6 +71,39 @@ const AskNewsPage: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Cleanup typing interval on unmount
+  useEffect(() => {
+    return () => {
+      if (typingRef.current) clearInterval(typingRef.current);
+    };
+  }, []);
+
+  const typeOutResponse = useCallback((fullText: string, msgId: string) => {
+    const words = fullText.split(/(\s+)/); // split but keep whitespace
+    let index = 0;
+    setIsTyping(true);
+
+    typingRef.current = window.setInterval(() => {
+      // Add a few words per tick for natural speed
+      index += 3;
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId
+            ? { ...m, content: words.slice(0, index).join('') }
+            : m
+        )
+      );
+
+      if (index >= words.length) {
+        if (typingRef.current) clearInterval(typingRef.current);
+        typingRef.current = null;
+        setIsTyping(false);
+        setIsLoading(false);
+      }
+    }, 30);
+  }, []);
 
   const handleSend = async (text?: string) => {
     const query = (text || input).trim();
@@ -63,8 +117,9 @@ const AskNewsPage: React.FC = () => {
       content: query,
     };
 
+    const assistantId = (Date.now() + 1).toString();
     const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
+      id: assistantId,
       role: 'assistant',
       content: '',
     };
@@ -74,119 +129,69 @@ const AskNewsPage: React.FC = () => {
 
     abortControllerRef.current = new AbortController();
 
-    fetch(ASK_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
-      signal: abortControllerRef.current.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Server error: ${response.status}`);
-
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let isDone = false;
-
-        while (!isDone) {
-          let result;
-          try {
-            result = await reader.read();
-          } catch {
-            // Stream error (e.g. ERR_INCOMPLETE_CHUNKED_ENCODING) — stop reading
-            break;
-          }
-
-          if (result.done) break;
-
-          buffer += decoder.decode(result.value, { stream: true });
-
-          // Process all complete lines in the buffer
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          let newText = '';
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-
-            if (trimmed.startsWith('data:')) {
-              const data = trimmed.slice(5).trim();
-
-              if (data === '[DONE]') {
-                isDone = true;
-                break;
-              }
-
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.chunk != null) {
-                  newText += parsed.chunk;
-                }
-              } catch {
-                // skip invalid JSON
-              }
-            }
-          }
-
-          if (newText) {
-            setMessages((prev) => {
-              const updated = [...prev];
-              const last = updated[updated.length - 1];
-              if (last.role === 'assistant') {
-                last.content += newText;
-              }
-              return updated;
-            });
-          }
-        }
-
-        // Process any remaining data in buffer
-        if (buffer.trim()) {
-          const trimmed = buffer.trim();
-          if (trimmed.startsWith('data:')) {
-            const data = trimmed.slice(5).trim();
-            if (data !== '[DONE]') {
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.chunk != null) {
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    const last = updated[updated.length - 1];
-                    if (last.role === 'assistant') {
-                      last.content += parsed.chunk;
-                    }
-                    return updated;
-                  });
-                }
-              } catch {
-                // skip
-              }
-            }
-          }
-        }
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-
-        // If content already received, ignore stream errors
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last?.role === 'assistant' && last.content) return prev;
-
-          const updated = [...prev];
-          const lastMsg = updated[updated.length - 1];
-          if (lastMsg?.role === 'assistant' && !lastMsg.content) {
-            lastMsg.content = 'Sorry, something went wrong. Please try again.';
-          }
-          return updated;
-        });
-      })
-      .finally(() => {
-        setIsLoading(false);
-        abortControllerRef.current = null;
-        inputRef.current?.focus();
+    try {
+      const response = await fetch(ASK_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+        signal: abortControllerRef.current.signal,
       });
+
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let raw = '';
+
+      // Read the entire stream
+      let done = false;
+      while (!done) {
+        try {
+          const result = await reader.read();
+          done = result.done;
+          if (!done) {
+            raw += decoder.decode(result.value, { stream: true });
+          }
+        } catch {
+          // ERR_INCOMPLETE_CHUNKED_ENCODING — stream content already captured
+          break;
+        }
+      }
+
+      // Parse the SSE data
+      const fullText = parseSSE(raw);
+
+      if (fullText) {
+        // Type it out word by word
+        typeOutResponse(fullText, assistantId);
+      } else {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: 'No results found. Try a different question.' }
+              : m
+          )
+        );
+        setIsLoading(false);
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setIsLoading(false);
+        return;
+      }
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? { ...m, content: 'Sorry, something went wrong. Please try again.' }
+            : m
+        )
+      );
+      setIsLoading(false);
+    } finally {
+      abortControllerRef.current = null;
+      inputRef.current?.focus();
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -197,12 +202,18 @@ const AskNewsPage: React.FC = () => {
   };
 
   const handleClearChat = () => {
-    if (isLoading && abortControllerRef.current) {
+    if (typingRef.current) {
+      clearInterval(typingRef.current);
+      typingRef.current = null;
+    }
+    if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     setMessages([]);
     setIsLoading(false);
+    setIsTyping(false);
   };
+
   return (
     <Layout>
       <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)', maxHeight: '800px' }}>
