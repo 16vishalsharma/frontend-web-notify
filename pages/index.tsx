@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Layout } from '@components/common';
+import { Layout, SEO } from '@components/common';
 import { Typography, Card, CardContent, Button, Box, Chip } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import NewspaperIcon from '@mui/icons-material/Newspaper';
@@ -48,8 +48,27 @@ const features = [
 ];
 
 const HomePage: React.FC = () => {
+  const websiteSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Notify',
+    url: process.env.NEXT_PUBLIC_SITE_URL || 'https://notify.com',
+    description: 'Live gold prices, share market news, IPO updates, and AI financial adviser for Indian investors.',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://notify.com'}/news?search={search_term_string}`,
+      'query-input': 'required name=search_term_string',
+    },
+  };
+
   return (
     <Layout>
+      <SEO
+        title="Notify - Live Gold Price, Share Market News & AI Financial Adviser India"
+        description="Live gold rates today in India for 22K & 24K. Latest share market news, IPO updates, mutual fund insights, and AI-powered financial adviser. Get expert analysis for Indian markets."
+        keywords="gold price today, share market news, IPO news, mutual funds, financial adviser, indian stock market, nifty, sensex, silver price"
+        jsonLd={websiteSchema}
+      />
       <Box className="text-center mb-10">
         <Typography variant="h1" className="mb-3 font-bold text-gray-900">
           Notify

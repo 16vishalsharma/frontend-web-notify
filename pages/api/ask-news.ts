@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import http from 'http';
 import https from 'https';
 
-const ASK_API_URL = process.env.NEXT_PUBLIC_ASK_API_URL || 'http://localhost:8001/ask';
+const ASK_API_URL = process.env.NEXT_PUBLIC_ASK_API_URL || 'http://localhost:8004/ask';
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {

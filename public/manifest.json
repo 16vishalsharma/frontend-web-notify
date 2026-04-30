@@ -1,0 +1,13 @@
+{
+  "name": "Notify - Market, Gold & Business News",
+  "short_name": "Notify",
+  "description": "Live gold prices, share market, IPO news, and AI financial adviser for Indian investors",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "/notify-logo.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/notify-logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

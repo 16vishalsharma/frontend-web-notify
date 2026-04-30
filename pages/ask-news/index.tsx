@@ -24,8 +24,6 @@ interface Message {
   content: string;
 }
 
-const ASK_API_URL = process.env.NEXT_PUBLIC_ASK_API_URL || 'http://localhost:8001/ask';
-
 const suggestedQuestions = [
   'What is the latest news on stock market?',
   'Tell me about recent IPO listings',
@@ -181,42 +179,21 @@ const AskNewsPage: React.FC = () => {
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setIsLoading(true);
 
-    abortControllerRef.current = new AbortController();
+    // Use XMLHttpRequest to bypass service worker intercepting fetch
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'http://localhost:8004/ask', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
 
-    try {
-      const response = await fetch(ASK_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-        signal: abortControllerRef.current.signal,
-      });
+    let raw = '';
 
-      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    xhr.onprogress = () => {
+      raw = xhr.responseText;
+    };
 
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let raw = '';
-
-      // Read the entire stream
-      let done = false;
-      while (!done) {
-        try {
-          const result = await reader.read();
-          done = result.done;
-          if (!done) {
-            raw += decoder.decode(result.value, { stream: true });
-          }
-        } catch {
-          // ERR_INCOMPLETE_CHUNKED_ENCODING — stream content already captured
-          break;
-        }
-      }
-
-      // Parse the SSE data
+    xhr.onload = () => {
+      raw = xhr.responseText;
       const fullText = parseSSE(raw);
-
       if (fullText) {
-        // Type it out word by word
         typeOutResponse(fullText, assistantId, query);
       } else {
         setMessages((prev) =>
@@ -228,12 +205,10 @@ const AskNewsPage: React.FC = () => {
         );
         setIsLoading(false);
       }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        setIsLoading(false);
-        return;
-      }
+      inputRef.current?.focus();
+    };
 
+    xhr.onerror = () => {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
@@ -242,10 +217,10 @@ const AskNewsPage: React.FC = () => {
         )
       );
       setIsLoading(false);
-    } finally {
-      abortControllerRef.current = null;
       inputRef.current?.focus();
-    }
+    };
+
+    xhr.send(JSON.stringify({ query }));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

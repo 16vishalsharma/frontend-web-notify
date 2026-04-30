@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { Layout, Loading } from '@components/common';
+import { Layout, Loading, SEO } from '@components/common';
 import { Typography, Box, ToggleButtonGroup, ToggleButton, IconButton, CircularProgress, Divider, Tooltip } from '@mui/material';
 import SortIcon from '@mui/icons-material/Sort';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -129,8 +129,19 @@ const NewsPage: React.FC = () => {
     return groups;
   }, [newsList, sortOrder]);
 
+  const topicTitle = topic ? topic.charAt(0).toUpperCase() + topic.slice(1).replace(/-/g, ' ') : '';
+
   return (
     <Layout>
+      <SEO
+        title={topic ? `${topicTitle} News Today | Latest Updates` : 'Market & Business News Today | Latest Indian Share Market Updates'}
+        description={
+          topic
+            ? `Latest ${topicTitle} news in India. Daily updates on ${topicTitle} trends, analysis, and market impact.`
+            : 'Latest Indian share market news, IPO updates, crypto trends, RBI policy, and business news. Updated daily for retail investors and traders.'
+        }
+        keywords={`${topic || 'share market'}, business news, indian stocks, IPO, crypto, RBI, finance news`}
+      />
       <Typography variant="h1" className="mb-2">Market & Business News</Typography>
       <Typography variant="body1" color="text.secondary" className="mb-6">
         Stay updated with the latest market trends and business news

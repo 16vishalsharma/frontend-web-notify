@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /upload
+Disallow: /blogger/login
+
+# Allow Googlebot and other major crawlers full access
+User-agent: Googlebot
+Allow: /
+Disallow: /api/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /api/
+
+# Sitemap location (replace notify.com with your real domain)
+Sitemap: https://notify.com/sitemap.xml

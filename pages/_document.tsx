@@ -39,6 +39,30 @@ export default class MyDocument extends Document {
       <Html lang="en">
         <Head>
           <link rel="icon" type="image/png" href="/notify-logo.png" />
+          <link rel="apple-touch-icon" href="/notify-logo.png" />
+          <link rel="manifest" href="/manifest.json" />
+
+          {/* Preconnect to speed up first paint */}
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+
+          {/* DNS prefetch for API */}
+          <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'} />
+
+          {/* Default Organization schema */}
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                '@context': 'https://schema.org',
+                '@type': 'Organization',
+                name: 'Notify',
+                url: process.env.NEXT_PUBLIC_SITE_URL || 'https://notify.com',
+                logo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://notify.com'}/notify-logo.png`,
+                sameAs: [],
+              }),
+            }}
+          />
         </Head>
         <body>
           <Main />

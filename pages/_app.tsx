@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import type { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import { ThemeProvider } from '@mui/material/styles';
@@ -17,6 +17,17 @@ interface MyAppProps extends AppProps {
 }
 
 const MyApp: React.FC<MyAppProps> = ({ Component, pageProps, emotionCache = clientSideEmotionCache }) => {
+  // Unregister any stale service workers that intercept API requests
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister();
+        });
+      });
+    }
+  }, []);
+
   return (
     <CacheProvider value={emotionCache}>
       <Provider store={store}>
