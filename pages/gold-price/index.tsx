@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import { IMetalPrice } from '@appTypes/index';
-import { formatDateTime } from '@utils/index';
+import { formatDateTime, fetchFallbackMetalPrice } from '@utils/index';
 
 const formatCurrency = (value: number, currency: 'USD' | 'INR') => {
   if (!value) return '-';
@@ -335,30 +335,35 @@ export const getServerSideProps: GetServerSideProps<GoldPricePageProps> = async 
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
+  let prices: IMetalPrice[] = [];
+  let latest: IMetalPrice | null = null;
+
   try {
     const { data } = await axios.get(`${apiUrl}/api/metal-prices`, {
       params: { limit: 30 },
       timeout: 5000,
     });
-    const prices: IMetalPrice[] = data.data || [];
-    const latest = prices.length > 0 ? prices[prices.length - 1] : null;
-
-    return {
-      props: {
-        prices,
-        latest,
-        todayDate: new Date().toISOString(),
-      },
-    };
+    prices = data.data || [];
+    latest = prices.length > 0 ? prices[prices.length - 1] : null;
   } catch {
-    return {
-      props: {
-        prices: [],
-        latest: null,
-        todayDate: new Date().toISOString(),
-      },
-    };
+    // primary API unavailable — fall through to fallback below
   }
+
+  if (!latest) {
+    const fallback = await fetchFallbackMetalPrice();
+    if (fallback) {
+      latest = fallback;
+      prices = [fallback];
+    }
+  }
+
+  return {
+    props: {
+      prices,
+      latest,
+      todayDate: new Date().toISOString(),
+    },
+  };
 };
 
 export default GoldPricePage;
